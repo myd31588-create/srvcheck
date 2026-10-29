@@ -1,7 +1,17 @@
 # 服务器体检仪（srvcheck）
 
+[![build](https://github.com/myd31588-create/srvcheck/actions/workflows/build.yml/badge.svg)](https://github.com/myd31588-create/srvcheck/actions/workflows/build.yml)
+
 > 一条命令体检云服务器，生成**老板能看懂**的中文诊断报告。
 > 只读探测 · 不修改任何系统配置 · 不上传任何数据 · 报告单文件可直接微信发送。
+
+## CI/CD
+
+推送到 `main` 自动触发：
+
+1. **编译 + 冒烟测试**：在真实 Linux（GitHub runner）上跑全部 23 项检查，验证工具能正常出报告，报告作为 artifact 保存
+2. **自包含部署包**：`jlink` 裁剪最小 JRE，产出 `srvcheck-bundle.tar.gz` artifact（30 天保留）
+3. **打 tag 自动发版**：推送 `v*` 标签（如 `git tag v0.1.1 && git push --tags`）自动创建 GitHub Release 并附上部署包，服务器上直接 `wget` 就能装
 
 ## 它解决什么问题
 

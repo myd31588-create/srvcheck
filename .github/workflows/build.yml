@@ -1,0 +1,96 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ---------- 1. 编译 + 真实 Linux 冒烟测试 ----------
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build
+        run: mvn -B package -DskipTests
+
+      - name: Smoke test (real Linux, 23 checks run for real)
+        run: |
+          java -jar target/srvcheck.jar --html report.html --json report.json | tee smoke.log
+          grep -q "体检总分" smoke.log
+          grep -q "HTML 报告" smoke.log
+          test -s report.html && test -s report.json
+          echo "---- 报告摘要 ----"
+          grep -A2 "体检总分" smoke.log
+
+      - name: Upload smoke report
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: |
+            report.html
+            report.json
+            smoke.log
+          retention-days: 7
+
+  # ---------- 2. 构建自包含部署包（jar + jlink 最小运行时） ----------
+  bundle:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Linux runner 上直接用本机 jmods 裁剪，无需下载
+      - name: Build self-contained bundle
+        run: ./scripts/build-bundle.sh
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: srvcheck-bundle
+          path: srvcheck-bundle.tar.gz
+          retention-days: 30
+
+  # ---------- 3. 打 tag（v*）自动发 Release，附部署包 ----------
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: [test, bundle]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: srvcheck-bundle
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: srvcheck-bundle.tar.gz
+          generate_release_notes: true
+          body: |
+            ## 下载
+            - `srvcheck-bundle.tar.gz`：自包含部署包（含 jlink 裁剪的最小 JRE），目标服务器无需安装 Java
+
+            ## 使用
+            ```bash
+            mkdir -p /tmp/srvcheck && tar -xzf srvcheck-bundle.tar.gz -C /tmp/srvcheck
+            chmod +x /tmp/srvcheck/runtime/bin/*
+            /tmp/srvcheck/runtime/bin/java -jar /tmp/srvcheck/srvcheck.jar
+            ```
