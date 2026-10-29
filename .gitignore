@@ -1,0 +1,23 @@
+# 构建产物
+target/
+bundle/
+srvcheck-bundle.tar.gz
+
+# 本地缓存（Linux jmods 等，约 185MB+）
+.cache/
+
+# 报告输出
+reports/
+*.html
+!docs/*.html
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 日志与临时文件
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
